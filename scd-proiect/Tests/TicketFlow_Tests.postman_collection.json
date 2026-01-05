@@ -1,0 +1,194 @@
+{
+	"info": {
+		"_postman_id": "ticketflow-id-v2",
+		"name": "TicketFlow Demo (SCD Project)",
+		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+	},
+	"item": [
+		{
+			"name": "1. Admin Login (Get Token)",
+			"event": [
+				{
+					"listen": "test",
+					"script": {
+						"exec": [
+							"var jsonData = pm.response.json();",
+							"pm.environment.set(\"admin_token\", jsonData.access_token);",
+							"console.log(\"Admin Token Set\");"
+						],
+						"type": "text/javascript"
+					}
+				}
+			],
+			"request": {
+				"method": "POST",
+				"header": [
+					{ "key": "Content-Type", "value": "application/json" }
+				],
+				"body": {
+					"mode": "raw",
+					"raw": "{\n    \"username\": \"admin_user\",\n    \"password\": \"1234\"\n}"
+				},
+				"url": {
+					"raw": "{{base_url}}/login",
+					"host": ["{{base_url}}"],
+					"path": ["login"]
+				}
+			}
+		},
+		{
+			"name": "2. Create Event (Admin Only)",
+			"event": [
+				{
+					"listen": "test",
+					"script": {
+						"exec": [
+							"var jsonData = pm.response.json();",
+							"pm.environment.set(\"event_id\", jsonData.id);",
+							"pm.test(\"Event Created\", function () { pm.response.to.have.status(200); });"
+						],
+						"type": "text/javascript"
+					}
+				}
+			],
+			"request": {
+				"method": "POST",
+				"header": [
+					{ "key": "Authorization", "value": "Bearer {{admin_token}}" },
+					{ "key": "Content-Type", "value": "application/json" }
+				],
+				"body": {
+					"mode": "raw",
+					"raw": "{\n    \"name\": \"Concert Coldplay 2025\",\n    \"total_tickets\": 100,\n    \"price\": 500\n}"
+				},
+				"url": {
+					"raw": "{{base_url}}/events",
+					"host": ["{{base_url}}"],
+					"path": ["events"]
+				}
+			}
+		},
+		{
+			"name": "3. User Login (Get Token)",
+			"event": [
+				{
+					"listen": "test",
+					"script": {
+						"exec": [
+							"var jsonData = pm.response.json();",
+							"pm.environment.set(\"user_token\", jsonData.access_token);",
+							"pm.environment.set(\"user_id\", \"robert_id_mock\");"
+						],
+						"type": "text/javascript"
+					}
+				}
+			],
+			"request": {
+				"method": "POST",
+				"header": [
+					{ "key": "Content-Type", "value": "application/json" }
+				],
+				"body": {
+					"mode": "raw",
+					"raw": "{\n    \"username\": \"robert\",\n    \"password\": \"1234\"\n}"
+				},
+				"url": {
+					"raw": "{{base_url}}/login",
+					"host": ["{{base_url}}"],
+					"path": ["login"]
+				}
+			}
+		},
+		{
+			"name": "4. View Events (Public)",
+			"request": {
+				"method": "GET",
+				"header": [],
+				"url": {
+					"raw": "{{base_url}}/events",
+					"host": ["{{base_url}}"],
+					"path": ["events"]
+				}
+			}
+		},
+		{
+			"name": "5. Reserve Seat (Locking)",
+			"event": [
+				{
+					"listen": "test",
+					"script": {
+						"exec": [
+							"pm.test(\"Reservation Successful\", function () { pm.response.to.have.status(200); });"
+						],
+						"type": "text/javascript"
+					}
+				}
+			],
+			"request": {
+				"method": "POST",
+				"header": [
+					{ "key": "Authorization", "value": "Bearer {{user_token}}" },
+					{ "key": "Content-Type", "value": "application/json" }
+				],
+				"body": {
+					"mode": "raw",
+					"raw": "{\n    \"event_id\": {{event_id}},\n    \"seat_id\": \"A1\",\n    \"user_id\": \"{{user_id}}\"\n}"
+				},
+				"url": {
+					"raw": "{{base_url}}/reserve",
+					"host": ["{{base_url}}"],
+					"path": ["reserve"]
+				}
+			}
+		},
+		{
+			"name": "6. TEST LOCK (Fail Expected)",
+			"event": [
+				{
+					"listen": "test",
+					"script": {
+						"exec": [
+							"pm.test(\"Lock Active - Returns 409\", function () { pm.response.to.have.status(409); });"
+						],
+						"type": "text/javascript"
+					}
+				}
+			],
+			"request": {
+				"method": "POST",
+				"header": [
+					{ "key": "Authorization", "value": "Bearer {{user_token}}" },
+					{ "key": "Content-Type", "value": "application/json" }
+				],
+				"body": {
+					"mode": "raw",
+					"raw": "{\n    \"event_id\": {{event_id}},\n    \"seat_id\": \"A1\",\n    \"user_id\": \"intruder_user\"\n}"
+				},
+				"url": {
+					"raw": "{{base_url}}/reserve",
+					"host": ["{{base_url}}"],
+					"path": ["reserve"]
+				}
+			}
+		},
+		{
+			"name": "7. Buy Ticket",
+			"request": {
+				"method": "POST",
+				"header": [
+					{ "key": "Authorization", "value": "Bearer {{user_token}}" },
+					{ "key": "Content-Type", "value": "application/json" }
+				],
+				"body": {
+					"mode": "raw",
+					"raw": "{\n    \"event_id\": {{event_id}},\n    \"seat_id\": \"A1\",\n    \"user_id\": \"{{user_id}}\"\n}"
+				},
+				"url": {
+					"raw": "{{base_url}}/buy",
+					"host": ["{{base_url}}"],
+					"path": ["buy"]
+				}
+			}
+		}
+	]
+}

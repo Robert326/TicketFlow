@@ -1,0 +1,79 @@
+version: '3.8'
+
+networks:
+  public_net:
+    driver: overlay
+  app_net:
+    driver: overlay
+  data_net:
+    driver: overlay
+    internal: true
+
+volumes:
+  postgres_data:
+  redis_data:
+  keycloak_data:
+
+services:
+  # 1. API Gateway & Frontend (The Entry Point)
+  gateway:
+    build: ./api-gateway
+    image: ticketflow-gateway:latest
+    ports:
+      - "8001:8000"
+    networks:
+      - public_net
+      - app_net
+      - data_net 
+    environment:
+      - DATABASE_URL=postgresql://user:password@db:5432/ticketflow
+      - REDIS_URL=redis://redis:6379/0
+      - KEYCLOAK_URL=http://auth-service:8080
+    deploy:
+      replicas: 1
+      placement:
+        constraints: [node.role == manager] 
+    depends_on:
+      - db
+      - redis
+
+  # 2. Identity Provider (Keycloak)
+  auth-service:
+    image: quay.io/keycloak/keycloak:22.0.0
+    command: start-dev
+    environment:
+      - KEYCLOAK_ADMIN=admin
+      - KEYCLOAK_ADMIN_PASSWORD=admin
+    ports:
+      - "8080:8080"
+    networks:
+      - public_net
+      - app_net
+    volumes:
+      - keycloak_data:/opt/keycloak/data
+    deploy:
+      replicas: 1
+
+  # 3. Database (PostgreSQL)
+  db:
+    image: postgres:15
+    environment:
+      - POSTGRES_USER=user
+      - POSTGRES_PASSWORD=password
+      - POSTGRES_DB=ticketflow
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - data_net
+    deploy:
+      replicas: 1
+
+  # 4. In-Memory Store (Redis - for distributed locks)
+  redis:
+    image: redis:7-alpine
+    volumes:
+      - redis_data:/data
+    networks:
+      - data_net
+    deploy:
+      replicas: 1
