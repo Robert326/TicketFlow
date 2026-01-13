@@ -5,15 +5,53 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>TicketFlow</title>
     <style>
-        body { font-family: monospace; max-width: 800px; margin: 0 auto; padding: 20px; background-color: #f0f0f0; }
-        .card { background: white; padding: 20px; margin-bottom: 20px; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
-        h1 { color: #333; border-bottom: 2px solid #333; padding-bottom: 10px; }
-        button { padding: 10px 20px; cursor: pointer; border: none; background: #007bff; color: white; font-family: monospace; }
-        button:disabled { background: #ccc; }
-        input { padding: 8px; border: 1px solid #ddd; }
-        #logs { background: #333; color: #0f0; padding: 10px; height: 150px; overflow-y: scroll; font-family: monospace; }
+        * { box-sizing: border-box; }
+        body { font-family: 'Segoe UI', sans-serif; max-width: 1000px; margin: 0 auto; padding: 20px; background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%); min-height: 100vh; color: #fff; }
+        .card { background: rgba(255,255,255,0.1); backdrop-filter: blur(10px); padding: 20px; margin-bottom: 20px; border-radius: 12px; border: 1px solid rgba(255,255,255,0.1); }
+        h1 { color: #fff; border-bottom: 2px solid #4CAF50; padding-bottom: 10px; margin-bottom: 20px; }
+        h3 { margin-top: 0; color: #4CAF50; }
+        button { padding: 10px 20px; cursor: pointer; border: none; background: linear-gradient(135deg, #4CAF50, #45a049); color: white; border-radius: 6px; font-weight: bold; transition: transform 0.2s; }
+        button:hover { transform: scale(1.05); }
+        button:disabled { background: #555; transform: none; }
+        input { padding: 10px; border: 1px solid #444; border-radius: 6px; background: rgba(255,255,255,0.1); color: #fff; }
+        select { padding: 10px; border: 1px solid #444; border-radius: 6px; background: #fff; color: #000; }
+        option { background: #fff; color: #000; }
+        input::placeholder { color: #888; }
+        #logs { background: #0a0a0a; color: #0f0; padding: 15px; height: 120px; overflow-y: scroll; font-family: 'Courier New', monospace; font-size: 12px; border-radius: 8px; }
         .hidden { display: none; }
-        .status-box { padding: 10px; margin-top: 10px; border: 1px dashed #999; }
+        
+        /* Seat Grid Styles */
+        .seat-container { margin-top: 20px; }
+        .seat-grid { display: grid; grid-template-columns: repeat(10, 1fr); gap: 8px; max-width: 500px; margin: 20px auto; }
+        .seat { 
+            width: 40px; height: 40px; 
+            border-radius: 8px 8px 4px 4px; 
+            display: flex; align-items: center; justify-content: center; 
+            font-size: 11px; font-weight: bold; 
+            cursor: pointer; 
+            transition: all 0.2s;
+            border: 2px solid transparent;
+        }
+        .seat:hover { transform: scale(1.1); }
+        .seat.available { background: linear-gradient(135deg, #4CAF50, #45a049); color: #fff; }
+        .seat.reserved { background: linear-gradient(135deg, #2196F3, #1976D2); color: #fff; cursor: not-allowed; }
+        .seat.sold { background: #555; color: #888; cursor: not-allowed; }
+        .seat.selected { background: linear-gradient(135deg, #333, #111); color: #fff; border: 2px solid #4CAF50; box-shadow: 0 0 10px #4CAF50; }
+        .seat.my-reserved { background: linear-gradient(135deg, #FF9800, #F57C00); color: #fff; }
+        
+        .legend { display: flex; gap: 20px; justify-content: center; margin-top: 20px; flex-wrap: wrap; }
+        .legend-item { display: flex; align-items: center; gap: 8px; }
+        .legend-color { width: 24px; height: 24px; border-radius: 6px; }
+        
+        .stage { background: linear-gradient(135deg, #9C27B0, #7B1FA2); padding: 15px; border-radius: 8px; text-align: center; margin-bottom: 20px; font-weight: bold; letter-spacing: 2px; }
+        
+        .event-selector { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+        .event-selector select { min-width: 200px; }
+        
+        .action-bar { margin-top: 20px; padding: 15px; background: rgba(0,0,0,0.3); border-radius: 8px; display: flex; gap: 15px; align-items: center; flex-wrap: wrap; }
+        .selected-info { color: #4CAF50; font-weight: bold; }
+        
+        .price-tag { font-size: 24px; color: #4CAF50; font-weight: bold; }
     </style>
 </head>
 <body>
@@ -21,49 +59,60 @@
 
     <!-- 1. AUTH PANEL -->
     <div class="card">
-        <h3>1. Login (Real Keycloak)</h3>
-        <div id="login-form">
+        <h3>Login</h3>
+        <div id="login-form" style="display: flex; gap: 10px; flex-wrap: wrap;">
             <input type="text" id="username" placeholder="Username">
             <input type="password" id="password" placeholder="Password">
             <button onclick="login()">Login</button>
-            <p style="margin-top: 10px; font-size: 0.9em;">
-                <a href="http://localhost:8080/realms/ticketflow/protocol/openid-connect/registrations?client_id=ticketflow-client&response_type=code&scope=openid&redirect_uri=http://localhost:8001/" target="_blank">Register</a>
-            </p>
+            <button onclick="window.open('http://localhost:8080/realms/ticketflow/protocol/openid-connect/registrations?client_id=ticketflow-client&response_type=code&scope=openid&redirect_uri=http://localhost:8001/', '_blank')" style="background: linear-gradient(135deg, #2196F3, #1976D2);">Register</button>
         </div>
-        <div id="user-info" class="hidden">
-            <p>Logged in as: <b id="display-user"></b> | Role: <b id="display-role"></b></p>
-            <button onclick="logout()" style="background: red;">Logout</button>
+        <div id="user-info" class="hidden" style="display: flex; gap: 15px; align-items: center;">
+            <span>Logged in as: <b id="display-user"></b></span>
+            <span>Role: <b id="display-role"></b></span>
+            <button onclick="logout()" style="background: linear-gradient(135deg, #f44336, #d32f2f);">Logout</button>
         </div>
     </div>
 
     <!-- 2. ADMIN PANEL -->
-    <div class="card hidden" id="admin-panel" style="border-left: 5px solid red;">
+    <div class="card hidden" id="admin-panel" style="border-left: 4px solid #f44336;">
         <h3>Admin: Create Event</h3>
-        <input type="text" id="evt-name" placeholder="Event Name">
-        <input type="number" id="evt-total" placeholder="Total Tickets" value="100">
-        <input type="number" id="evt-price" placeholder="Price" value="50">
-        <button onclick="triggerCreateEvent()">Create Event</button>
+        <div style="display: flex; gap: 10px; flex-wrap: wrap;">
+            <input type="text" id="evt-name" placeholder="Event Name">
+            <input type="number" id="evt-total" placeholder="Total Tickets" value="100">
+            <input type="number" id="evt-price" placeholder="Price" value="50">
+            <button onclick="triggerCreateEvent()">Create Event</button>
+        </div>
     </div>
 
-    <!-- 3. PUBLIC EVENTS -->
-    <div class="card">
-        <h3>Events</h3>
-        <button onclick="loadEvents()">Refresh Events</button>
-        <div id="event-list" class="status-box">Loading...</div>
-    </div>
-
-    <!-- 4. USER ACTIONS -->
-    <div class="card hidden" id="action-panel" style="border-left: 5px solid green;">
-        <h3>User: Buy Ticket</h3>
-        <p>Event ID: <input type="number" id="selected-event-id" value="1" style="width: 50px;"> | Seat: <input type="text" id="seat-id" value="A1" size="5"></p>
+    <!-- 3. SEAT SELECTION PANEL -->
+    <div class="card" id="seat-panel">
+        <h3>Select Seats</h3>
         
-        <div style="display: flex; gap: 10px; align-items: center;">
-            <button id="btn-start-buy" onclick="startPurchaseFlow()" style="background: #007bff;">Buy Ticket</button>
+        <div class="event-selector">
+            <label>Select Event:</label>
+            <select id="event-select" onchange="loadSeats()">
+                <option value="">-- Choose Event --</option>
+            </select>
+            <button onclick="loadSeats()" style="padding: 10px;">Refresh</button>
+            <span id="event-price" class="price-tag"></span>
+        </div>
+        
+        <div id="seat-container" class="seat-container hidden">
+            <div class="stage">STAGE</div>
+            <div id="seat-grid" class="seat-grid"></div>
             
-            <div id="payment-area" class="hidden">
-                <span style="color: #ffc107; font-weight: bold; margin-right: 10px;">Seat Reserved! (10 min)</span>
-                <button onclick="confirmPayment()" style="background: #28a745;">Confirm & Pay</button>
+            <div class="legend">
+                <div class="legend-item"><div class="legend-color" style="background: linear-gradient(135deg, #4CAF50, #45a049);"></div> Available</div>
+                <div class="legend-item"><div class="legend-color" style="background: linear-gradient(135deg, #333, #111); border: 2px solid #4CAF50;"></div> Selected</div>
+                <div class="legend-item"><div class="legend-color" style="background: linear-gradient(135deg, #2196F3, #1976D2);"></div> Reserved</div>
+                <div class="legend-item"><div class="legend-color" style="background: #555;"></div> Sold</div>
             </div>
+        </div>
+        
+        <div id="action-bar" class="action-bar hidden">
+            <span class="selected-info">Selected: <b id="selected-seat-display">-</b></span>
+            <button id="btn-reserve" onclick="reserveSelectedSeat()" style="background: linear-gradient(135deg, #FF9800, #F57C00);">Reserve (10 min)</button>
+            <button id="btn-buy" onclick="buySelectedSeat()" class="hidden">Confirm & Pay</button>
         </div>
     </div>
 
@@ -75,13 +124,20 @@
 
     <script>
         let accessToken = null;
+        let selectedSeat = null;
+        let currentEventId = null;
+        let currentUsername = null;
+        let pollingInterval = null;
+        let lastSeatData = null; // Cache to allow responsive toggling
 
         function log(msg) {
             const el = document.getElementById('logs');
-            el.innerHTML += `<div>> ${msg}</div>`;
+            const time = new Date().toLocaleTimeString();
+            el.innerHTML += `<div>[${time}] ${msg}</div>`;
             el.scrollTop = el.scrollHeight;
         }
 
+        // ========== AUTH ==========
         async function login() {
             const u = document.getElementById('username').value;
             const p = document.getElementById('password').value;
@@ -96,44 +152,48 @@
                 
                 if (res.ok) {
                     accessToken = data.access_token;
+                    currentUsername = u;
                     log("Login Successful!");
                     document.getElementById('login-form').classList.add('hidden');
                     document.getElementById('user-info').classList.remove('hidden');
+                    document.getElementById('user-info').style.display = 'flex';
                     document.getElementById('display-user').innerText = u;
                     
-                    // Simple logic: if username is 'admin_user', show admin panel
-                    // In real app we parse JWT roles
                     if(u === 'admin_user') { 
                         document.getElementById('admin-panel').classList.remove('hidden');
                         document.getElementById('display-role').innerText = 'ADMIN';
                     } else {
-                        document.getElementById('action-panel').classList.remove('hidden');
                         document.getElementById('display-role').innerText = 'USER';
                     }
+                    
+                    loadEvents();
                 } else {
-                    log("Login Failed: " + JSON.stringify(data));
+                    log("Login Failed: " + (data.detail || JSON.stringify(data)));
                 }
             } catch (e) { log("Error: " + e); }
         }
 
         function logout() {
             accessToken = null;
+            currentUsername = null;
+            if (pollingInterval) clearInterval(pollingInterval);
             location.reload();
         }
 
+        // ========== EVENTS ==========
         async function loadEvents() {
             try {
-                log('Fetching events...');
                 const res = await fetch('/events');
                 const data = await res.json();
                 
+                const select = document.getElementById('event-select');
+                select.innerHTML = '<option value="">-- Choose Event --</option>';
+                
                 if (Array.isArray(data)) {
-                    document.getElementById('event-list').innerHTML = data.map(e => 
-                        `<div><b>ID ${e.id}:</b> ${e.name} - $${e.price} (Available: ${e.remaining}/${e.total_tickets})</div>`
-                    ).join('');
-                    log(`Loaded ${data.length} events.`);
-                } else {
-                    log("Error loading events (not array): " + JSON.stringify(data));
+                    data.forEach(e => {
+                        select.innerHTML += `<option value="${e.id}" data-price="${e.price}">${e.name} ($${e.price})</option>`;
+                    });
+                    log(`Loaded ${data.length} events`);
                 }
             } catch(e) {
                 log("Load Events Error: " + e);
@@ -141,98 +201,244 @@
         }
 
         async function triggerCreateEvent() {
-            try {
-                if (!accessToken) return alert("Unauthorized");
-                const name = document.getElementById('evt-name').value;
-                const total = document.getElementById('evt-total').value;
-                const price = document.getElementById('evt-price').value;
+            if (!accessToken) return alert("Unauthorized");
+            const name = document.getElementById('evt-name').value;
+            const total = document.getElementById('evt-total').value;
+            const price = document.getElementById('evt-price').value;
 
-                log("Sending Create Event Request...");
+            try {
                 const res = await fetch('/events', {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json',
                         'Authorization': 'Bearer ' + accessToken
                     },
-                    body: JSON.stringify({name: name, total_tickets: total, price: price})
+                    body: JSON.stringify({name: name, total_tickets: parseInt(total), price: parseInt(price)})
                 });
-                
-                log(`Response Status: ${res.status}`);
                 const data = await res.json();
-                log("Response Body: " + JSON.stringify(data));
                 
                 if (res.ok) {
+                    log("Event created: " + name);
                     loadEvents();
                 } else {
-                    log("Create Failed: " + JSON.stringify(data));
+                    log("Create Failed: " + (data.detail || JSON.stringify(data)));
                 }
             } catch (e) {
                 log("Create Event Error: " + e);
-                console.error(e);
             }
         }
 
+        // ========== SEATS ==========
+        async function loadSeats() {
+            const select = document.getElementById('event-select');
+            const eventId = select.value;
+            
+            if (!eventId) {
+                document.getElementById('seat-container').classList.add('hidden');
+                document.getElementById('action-bar').classList.add('hidden');
+                document.getElementById('event-price').innerText = '';
+                if (pollingInterval) clearInterval(pollingInterval);
+                return;
+            }
+            
+            currentEventId = eventId;
+            const price = select.options[select.selectedIndex].dataset.price;
+            document.getElementById('event-price').innerText = `$${price}`;
+            
+            try {
+                const res = await fetch(`/events/${eventId}/seats`);
+                const data = await res.json();
+                
+                if (res.ok) {
+                    lastSeatData = data; // Cache data
+                    renderSeatGrid(data);
+                    updateActionBar(); // Update buttons based on new status
+                    document.getElementById('seat-container').classList.remove('hidden');
+                    
+                    // Start polling
+                    if (pollingInterval) clearInterval(pollingInterval);
+                    pollingInterval = setInterval(() => loadSeatsSilent(), 5000);
+                } else {
+                    log((data.detail || "Failed to load seats"));
+                }
+            } catch(e) {
+                log("Load Seats Error: " + e);
+            }
+        }
 
+        async function loadSeatsSilent() {
+             // Same as loadSeats but without re-initializing everything or resetting selection UI unexpectedly
+             // We only want to update statuses of *other* seats, keeping our selection valid
+             if (!currentEventId) return;
+             try {
+                 const res = await fetch(`/events/${currentEventId}/seats`);
+                 if (res.ok) {
+                     const data = await res.json();
+                     lastSeatData = data;
+                     renderSeatGrid(data);
+                 }
+             } catch(e) { console.error(e); }
+        }
 
-        async function startPurchaseFlow() {
-            if (!accessToken) return alert("Must log in first!");
-            const eid = document.getElementById('selected-event-id').value;
-            const seat = document.getElementById('seat-id').value;
-            const user = document.getElementById('display-user').innerText;
+        function renderSeatGrid(data) {
+            const grid = document.getElementById('seat-grid');
+            grid.innerHTML = '';
+            
+            data.seats.forEach(seat => {
+                const div = document.createElement('div');
+                div.className = 'seat ' + seat.status;
+                div.dataset.seatId = seat.id;
+                div.innerText = seat.col;
+                div.title = `Row ${seat.row}, Seat ${seat.col}`;
+                
+                // 1. Reserved by ME
+                if (seat.status === 'reserved' && seat.reserved_by === currentUsername) {
+                    div.className = 'seat my-reserved';
+                }
+                
+                // 2. Currently Selected by ME (UI state)
+                if (selectedSeat === seat.id) {
+                     // Check if it's still available according to server (or reserved by us)
+                     // If someone else snatched it, we deselect
+                     if (seat.status === 'available' || (seat.status === 'reserved' && seat.reserved_by === currentUsername)) {
+                         div.className = 'seat selected';
+                     } else {
+                         // Seat was taken under our nose
+                         if (selectedSeat === seat.id) {
+                             selectedSeat = null; // Auto deselect
+                             updateActionBar();
+                         }
+                     }
+                }
+                
+                // Click Logic
+                div.onclick = () => handleSeatClick(seat);
+                
+                grid.appendChild(div);
+            });
+        }
 
-            log("Step 1: Reserving seat temporarily...");
+        function handleSeatClick(seat) {
+            if (!accessToken) {
+                alert("Please login first!");
+                return;
+            }
+
+            // Case A: Deselect current if clicked again
+            if (selectedSeat === seat.id) {
+                selectedSeat = null;
+                updateActionBar();
+                renderSeatGrid(lastSeatData); // Re-render locally
+                return;
+            }
+
+            // Case B: Select new available seat
+            if (seat.status === 'available') {
+                selectedSeat = seat.id;
+                updateActionBar();
+                renderSeatGrid(lastSeatData); // Re-render locally
+            } 
+            // Case C: Click my own reserved seat (to buy it)
+            else if (seat.status === 'reserved' && seat.reserved_by === currentUsername) {
+                selectedSeat = seat.id;
+                updateActionBar();
+                renderSeatGrid(lastSeatData);
+            }
+            else {
+                // Ignore clicks on Sold or Others' Reserved seats
+                console.log("Cannot select unavailable seat");
+            }
+        }
+
+        function updateActionBar() {
+             const bar = document.getElementById('action-bar');
+             if (selectedSeat) {
+                 bar.classList.remove('hidden');
+                 document.getElementById('selected-seat-display').innerText = selectedSeat;
+                 
+                 // Smart buttons
+                 // If the seat is ALREADY reserved by me, show PAY.
+                 // If it is AVAILABLE, show RESERVE.
+                 
+                 // Find status in cache
+                 const seatInfo = lastSeatData.seats.find(s => s.id === selectedSeat);
+                 const isMyReservation = (seatInfo && seatInfo.status === 'reserved' && seatInfo.reserved_by === currentUsername);
+                 
+                 if (isMyReservation) {
+                     document.getElementById('btn-reserve').classList.add('hidden');
+                     document.getElementById('btn-buy').classList.remove('hidden');
+                 } else {
+                     document.getElementById('btn-reserve').classList.remove('hidden');
+                     document.getElementById('btn-buy').classList.add('hidden');
+                 }
+                 
+             } else {
+                 bar.classList.add('hidden');
+                 document.getElementById('selected-seat-display').innerText = '-';
+             }
+        }
+
+        async function reserveSelectedSeat() {
+            if (!selectedSeat || !currentEventId) return;
             
             try {
                 const res = await fetch('/reserve', {
                     method: 'POST',
-                    headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + accessToken },
-                    body: JSON.stringify({user_id: user, event_id: eid, seat_id: seat})
+                    headers: { 
+                        'Content-Type': 'application/json', 
+                        'Authorization': 'Bearer ' + accessToken 
+                    },
+                    body: JSON.stringify({
+                        user_id: currentUsername,
+                        event_id: parseInt(currentEventId),
+                        seat_id: selectedSeat
+                    })
                 });
                 const data = await res.json();
                 
-                if (res.ok) {
-                    log(`RESERVED: ${data.message}`);
-                    // UI Update
-                    document.getElementById('btn-start-buy').style.display = 'none'; // Hide Buy Button
-                    const payArea = document.getElementById('payment-area');
-                    payArea.classList.remove('hidden');
-                    payArea.style.display = 'flex'; // Show Payment Area
+                if (res.ok || res.status === 200) {
+                    log(`Reserved seat ${selectedSeat} for 10 minutes`);
+                    loadSeats(); // Refresh to show color change
                 } else {
-                    log("CANNOT START BUY: " + (data.detail || JSON.stringify(data)));
+                    log((data.detail || "Reservation failed"));
                 }
-            } catch (e) { log("Error: " + e); }
+            } catch (e) {
+                log("Error: " + e);
+            }
         }
 
-        async function confirmPayment() {
-            if (!accessToken) return alert("Must log in first!");
-            const eid = document.getElementById('selected-event-id').value;
-            const seat = document.getElementById('seat-id').value;
-            const user = document.getElementById('display-user').innerText;
-
-            log("Step 2: Processing Payment...");
+        async function buySelectedSeat() {
+            if (!selectedSeat || !currentEventId) return;
             
             try {
                 const res = await fetch('/buy', {
                     method: 'POST',
-                    headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + accessToken },
-                    body: JSON.stringify({user_id: user, event_id: eid, seat_id: seat})
+                    headers: { 
+                        'Content-Type': 'application/json', 
+                        'Authorization': 'Bearer ' + accessToken 
+                    },
+                    body: JSON.stringify({
+                        user_id: currentUsername,
+                        event_id: parseInt(currentEventId),
+                        seat_id: selectedSeat
+                    })
                 });
                 const data = await res.json();
                 
                 if (res.ok) {
-                    log(`SUCCESS: Payment Accepted! Order ID: ${data.order_id}`);
-                    // Reset UI
-                    document.getElementById('btn-start-buy').style.display = 'block'; // Show Buy Button
-                    const payArea = document.getElementById('payment-area');
-                    payArea.classList.add('hidden');
-                    payArea.style.display = 'none'; // Hide Payment Area
-                    loadEvents(); // Refresh available tickets
+                    log(`SUCCESS! Ticket purchased! Order ID: ${data.order_id}`);
+                    selectedSeat = null;
+                    updateActionBar();
+                    loadSeats();
                 } else {
-                    log("PAYMENT FAILED: " + (data.detail || JSON.stringify(data)));
+                    log((data.detail || "Purchase failed"));
                 }
-            } catch (e) { log("Error: " + e); }
+            } catch (e) {
+                log("Error: " + e);
+            }
         }
-        
+
+        // Initial load
         loadEvents();
     </script>
 </body>

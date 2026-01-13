@@ -3,16 +3,19 @@ version: '3.8'
 networks:
   public_net:
     driver: overlay
+    attachable: true
   app_net:
     driver: overlay
+    attachable: true
   data_net:
     driver: overlay
-    internal: true
+    attachable: true
 
 volumes:
   postgres_data:
   redis_data:
   keycloak_data:
+  rabbitmq_data:
 
 services:
   # 1. API Gateway & Frontend (The Entry Point)
@@ -29,6 +32,9 @@ services:
       - DATABASE_URL=postgresql://user:password@db:5432/ticketflow
       - REDIS_URL=redis://redis:6379/0
       - KEYCLOAK_URL=http://auth-service:8080
+      - RABBITMQ_HOST=rabbitmq
+      - RABBITMQ_USER=guest
+      - RABBITMQ_PASS=guest
     deploy:
       replicas: 1
       placement:
@@ -36,6 +42,7 @@ services:
     depends_on:
       - db
       - redis
+      - rabbitmq
 
   # 2. Identity Provider (Keycloak)
   auth-service:
@@ -75,5 +82,56 @@ services:
       - redis_data:/data
     networks:
       - data_net
+    deploy:
+      replicas: 1
+
+  # 5. Message Broker (RabbitMQ)
+  rabbitmq:
+    image: rabbitmq:3-management-alpine
+    environment:
+      - RABBITMQ_DEFAULT_USER=guest
+      - RABBITMQ_DEFAULT_PASS=guest
+    ports:
+      - "5672:5672"    # AMQP
+      - "15672:15672"  # Management UI
+    volumes:
+      - rabbitmq_data:/var/lib/rabbitmq
+    networks:
+      - app_net
+      - data_net
+    deploy:
+      replicas: 1
+
+  # 6. PDF Processor Workers (Scalable)
+  worker:
+    build: ./worker-service
+    image: ticketflow-worker:latest
+    environment:
+      - RABBITMQ_HOST=rabbitmq
+      - RABBITMQ_USER=guest
+      - RABBITMQ_PASS=guest
+      - DATABASE_URL=postgresql://user:password@db:5432/ticketflow
+      - SMTP_HOST=mailhog
+      - SMTP_PORT=1025
+    networks:
+      - app_net
+      - data_net
+    deploy:
+      replicas: 3  # Minimum 3 workers as per requirements
+      restart_policy:
+        condition: on-failure
+    depends_on:
+      - rabbitmq
+      - db
+      - mailhog
+
+  # 7. Email Testing Service (SMTP Mock)
+  mailhog:
+    image: mailhog/mailhog:latest
+    ports:
+      - "1025:1025"  # SMTP
+      - "8025:8025"  # Web UI
+    networks:
+      - app_net
     deploy:
       replicas: 1
