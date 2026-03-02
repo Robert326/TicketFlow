@@ -23,6 +23,7 @@ Sistemul este compus din urmatoarele servicii (definite in `docker-compose.yml`)
 | 5 | **Message Broker** | RabbitMQ | Coada pentru procesare asincrona |
 | 6 | **PDF Workers** | Python (3 replici) | Generare PDF + trimitere email |
 | 7 | **Email Service** | MailHog | SMTP mock pentru testare |
+| 8 | **Dynamic Pricing Engine** | Python | Calcul preturi in timp real |
 
 ### Retele Docker (Overlay)
 * `public_net`: Acces extern catre Gateway si Keycloak.
@@ -46,7 +47,16 @@ docker service scale scd-proiect_worker=5
 docker-compose down
 ```
 
-## 4. Endpoints
+## 4. Acces Servicii (Link-uri)
+
+| Serviciu | URL | User / Parola (Default) |
+|----------|-----|-------------------------|
+| **Web App (TicketFlow)** | [http://localhost:8001](http://localhost:8001) | `user1` / `1234` |
+| **Keycloak Admin** | [http://localhost:8080](http://localhost:8080) | `admin` / `admin` |
+| **RabbitMQ Dashboard** | [http://localhost:15672](http://localhost:15672) | `guest` / `guest` |
+| **MailHog (Email)** | [http://localhost:8025](http://localhost:8025) | _(Fara autentificare)_ |
+
+## 5. Endpoints
 
 | Endpoint | Method | Descriere |
 |----------|--------|-----------|
@@ -58,23 +68,12 @@ docker-compose down
 | `/buy` | POST | Achizitie bilet + trimitere la coada |
 | `/orders/<id>` | GET | Status comanda |
 
-## 6. Diagrama Arhitectură (Milestone 3)
-Pentru o vizualizare completă a rețelelor și containerelor, consultați fișierul `M3_344_Bolfa_RobertIon.pdf` din acest director. Diagrama include:
-- Worker Swarm (3 noduri)
-- RabbitMQ & MailHog
-- Organizarea pe rețele (public_net, app_net, data_net)
+## 6. Modificare Workeri (N workeri)
 
-## 7. Testare & Load Testing (Demo)
-
-### 7.1. Script de Load Testing
-Am implementat un script Python (`load_test.py`) care simulează **40 de utilizatori concurenți**. Scriptul rulează în containerul `api-gateway` pentru acces direct la rețeaua internă.
-
-**Rulare (One-Liner):**
 ```bash
-GATEWAY=$(docker ps -qf "name=ticketflow_gateway" | head -n1) && docker cp load_test.py $GATEWAY:/app/load_test.py && docker exec $GATEWAY python /app/load_test.py
+docker service scale ticketflow_worker= N
 ```
 
-### 7.2. Testare Manuală
-1. **Frontend:** Selectează un loc si apasă "Reserve" (Locul devine `Reserved`).
-2. **Buy:** Apasă "Confirm & Pay" (Locul devine `Processing` -> `Sold`).
-3. **MailHog:** Verifică email-ul primit cu biletul PDF atașat (http://localhost:8025).
+```bash
+docker service logs -f ticketflow_worker
+```

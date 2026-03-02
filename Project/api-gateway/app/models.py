@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String, ForeignKey, Enum
+from sqlalchemy import Column, Integer, String, ForeignKey, Enum, DateTime, func
 from sqlalchemy.orm import relationship
 from .database import Base
 import enum
@@ -27,3 +27,4 @@ class Order(Base):
     seat_id = Column(String)
     email = Column(String, nullable=True)
     status = Column(String, default=OrderStatus.PENDING)
+    created_at = Column(DateTime(timezone=True), server_default=func.now()) # Auto timestamp

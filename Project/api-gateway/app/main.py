@@ -52,10 +52,10 @@ def publish_to_queue(order_data):
         )
         
         connection.close()
-        print(f"[→] Order {order_data['order_id']} sent to queue", flush=True)
+        print(f"Order {order_data['order_id']} sent to queue", flush=True)
         return True
     except Exception as e:
-        print(f"[✗] Failed to publish to queue: {e}", flush=True)
+        print(f"Failed to publish to queue: {e}", flush=True)
         return False
 
 def get_db_session():
@@ -146,6 +146,87 @@ def create_event():
         db.commit()
         return jsonify({"status": "created", "id": event.id})
     except Exception as e:
+        return jsonify({"detail": str(e)}), 500
+    finally:
+        db.close()
+
+@app.route("/events/<int:event_id>", methods=["PUT"])
+def update_event(event_id):
+    auth_header = request.headers.get("Authorization")
+    if not auth_header:
+        return jsonify({"detail": "Missing Authorization header"}), 401
+    
+    try:
+        token = auth_header.split(" ")[1]
+        token_info = keycloak_openid.decode_token(token)
+        roles = token_info.get("realm_access", {}).get("roles", [])
+        
+        if "admin" not in roles:
+             return jsonify({"detail": "Admin role required"}), 403
+    except Exception as e:
+         return jsonify({"detail": "Auth Error: " + str(e)}), 401
+
+    data = request.get_json()
+    
+    db = get_db_session()
+    try:
+        event = db.query(Event).filter(Event.id == event_id).first()
+        if not event:
+            return jsonify({"detail": "Event not found"}), 404
+            
+        if "name" in data: event.name = data["name"]
+        if "total_tickets" in data: event.total_tickets = data["total_tickets"]
+        if "price" in data: event.price = data["price"]
+        
+        db.commit()
+        return jsonify({"status": "updated", "id": event.id})
+    except Exception as e:
+        db.rollback()
+        return jsonify({"detail": str(e)}), 500
+    finally:
+        db.close()
+
+@app.route("/events/<int:event_id>", methods=["DELETE"])
+def delete_event(event_id):
+    auth_header = request.headers.get("Authorization")
+    if not auth_header:
+        return jsonify({"detail": "Missing Authorization header"}), 401
+    
+    try:
+        token = auth_header.split(" ")[1]
+        token_info = keycloak_openid.decode_token(token)
+        roles = token_info.get("realm_access", {}).get("roles", [])
+        
+        if "admin" not in roles:
+             return jsonify({"detail": "Admin role required"}), 403
+    except Exception as e:
+         return jsonify({"detail": "Auth Error: " + str(e)}), 401
+         
+    db = get_db_session()
+    try:
+        event = db.query(Event).filter(Event.id == event_id).first()
+        if not event:
+            return jsonify({"detail": "Event not found"}), 404
+            
+        # Check sold tickets
+        sold_count = db.query(Order).filter(
+            Order.event_id == event_id,
+            Order.status.in_([OrderStatus.CONFIRMED.value, OrderStatus.PROCESSING.value, OrderStatus.COMPLETED.value])
+        ).count()
+        
+        # Rule: Allow delete if 0 sold OR if fully sold out (completed)
+        # Block if partially sold
+        if 0 < sold_count < event.total_tickets:
+             return jsonify({
+                 "detail": f"Cannot delete active event. Sold: {sold_count}/{event.total_tickets}. You can only delete empty or fully completed events."
+             }), 409
+             
+        db.query(Order).filter(Order.event_id == event_id).delete(synchronize_session=False)  # Cleanup orders first
+        db.delete(event)
+        db.commit()
+        return jsonify({"status": "deleted", "id": event_id})
+    except Exception as e:
+        db.rollback()
         return jsonify({"detail": str(e)}), 500
     finally:
         db.close()

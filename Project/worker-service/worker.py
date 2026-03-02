@@ -155,7 +155,8 @@ def callback(ch, method, properties, body):
         order_data = json.loads(body)
         order_id = order_data['order_id']
         
-        print(f"Processing Order #{order_id}...", flush=True)
+        worker_id = socket.gethostname()
+        print(f"[Worker {worker_id}] Processing Order #{order_id}...", flush=True)
         
         # Step 1: Generate PDF
         pdf_path = generate_pdf_ticket(order_data)
@@ -172,7 +173,7 @@ def callback(ch, method, properties, body):
         
         # Acknowledge message
         ch.basic_ack(delivery_tag=method.delivery_tag)
-        print(f"Order #{order_id} processed successfully!\n", flush=True)
+        print(f"[Worker {worker_id}] Order #{order_id} processed successfully!\n", flush=True)
         
     except Exception as e:
         print(f"Error processing message: {e}", flush=True)

@@ -117,7 +117,7 @@ services:
       - app_net
       - data_net
     deploy:
-      replicas: 3  # Minimum 3 workers as per requirements
+      replicas: 3  
       restart_policy:
         condition: on-failure
     depends_on:
@@ -135,3 +135,19 @@ services:
       - app_net
     deploy:
       replicas: 1
+
+  # 8. Dynamic Pricing Engine (Background Worker)
+  pricing-service:
+    build: ./pricing-service
+    image: ticketflow-pricing:latest
+    environment:
+      - DATABASE_URL=postgresql://user:password@db:5432/ticketflow
+      - POLL_INTERVAL=10
+    networks:
+      - data_net
+    deploy:
+      replicas: 1
+      restart_policy:
+        condition: on-failure
+    depends_on:
+      - db
